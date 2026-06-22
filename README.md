@@ -17,7 +17,13 @@ Bot WOTRAX adalah bot Telegram operasional berbasis Python yang dirancang untuk 
    - Mentag (@mention) username Telegram teknisi yang bersangkutan secara otomatis.
    - Berjalan otomatis setiap **30 menit sekali** (08:00 - 00:00), dengan sistem penyaringan cerdas: **jika tidak ada antrean pending ACTCOMP, bot tidak akan mengirim pesan apa pun ke grup** agar tidak mengganggu.
 
-3. **Cerdas & Tahan Eror (Name Resolution & Row Filter)**:
+3. **Cek Lanjut Lensa (Manual Reminder)**:
+   - Mendeteksi pekerjaan berstatus `LANJUT LENSA` yang memerlukan tindak lanjut oleh teknisi.
+   - Menggunakan Gemini AI untuk merumuskan draf pengingat kelanjutan pengerjaan lensa secara santai namun tegas.
+   - Mentag (@mention) username Telegram teknisi yang bersangkutan secara otomatis.
+   - Hanya dipicu secara manual via perintah `/cek_lensa` atau melalui tombol "🔍 Cek Lanjut Lensa" di menu utama bot (tidak masuk ke dalam penjadwalan otomatis/schedule grup).
+
+4. **Cerdas & Tahan Eror (Name Resolution & Row Filter)**:
    - **Resolusi Nama Teknisi**: Secara cerdas mencocokkan variasi penulisan nama di Google Sheet (misal: `"DIKY FEBRIANSAH - SAMSUL"` atau `"ABIL- HAFIZ"`) ke nama resmi di konfigurasi (`"DIKY FEBRIANSAH"` atau `"ABIL - APIS"`), sehingga statistik load balancing dan klasemen terhitung akurat tanpa baris ganda.
    - **Filter Baris Kosong**: Menyaring data berdasarkan kolom `WONUM` agar baris kosong di bawah sheet tidak merusak statistik rekap.
    - **Pembersih Tanda Kutip**: Otomatis membersihkan tanda kutip (`"` atau `'`) dari isian variabel di cloud/Railway untuk menghindari eror parser token.

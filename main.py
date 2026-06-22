@@ -5,7 +5,7 @@ import telebot
 from google import genai
 
 from config import BOT_TOKEN, GEMINI_KEY, GROUP_ID
-from sheets_handler import fetch_actcomp_data, fetch_rekap_data
+from sheets_handler import fetch_actcomp_data, fetch_rekap_data, fetch_lensa_data
 
 # Inisialisasi Client Gemini API
 client = None
@@ -29,6 +29,7 @@ try:
         telebot.types.BotCommand("start", "Mulai bot & Tampilkan menu utama"),
         telebot.types.BotCommand("rekap", "Melihat rekap produktivitas berkala"),
         telebot.types.BotCommand("cek_actcomp", "Memeriksa status ACTCOMP / BAI pending"),
+        telebot.types.BotCommand("cek_lensa", "Memeriksa status LANJUT LENSA pending"),
         telebot.types.BotCommand("id", "Melihat ID chat saat ini")
     ])
 except Exception as e:
@@ -39,6 +40,7 @@ def get_main_menu_keyboard():
     markup = telebot.types.InlineKeyboardMarkup()
     markup.row(telebot.types.InlineKeyboardButton("📊 Tampilkan Rekap", callback_data="btn_rekap"))
     markup.row(telebot.types.InlineKeyboardButton("🔔 Cek ACTCOMP (Pending BAI)", callback_data="btn_cek_actcomp"))
+    markup.row(telebot.types.InlineKeyboardButton("🔍 Cek Lanjut Lensa", callback_data="btn_cek_lensa"))
     markup.row(telebot.types.InlineKeyboardButton("🆔 Cek ID Chat", callback_data="btn_id"))
     return markup
 
@@ -97,6 +99,11 @@ def handle_cek_actcomp(message):
     bot.send_chat_action(message.chat.id, 'typing')
     bot.reply_to(message, fetch_actcomp_data(client, MODEL_ID), parse_mode="MarkdownV2")
 
+@bot.message_handler(commands=['cek_lensa'])
+def handle_cek_lensa(message):
+    bot.send_chat_action(message.chat.id, 'typing')
+    bot.reply_to(message, fetch_lensa_data(client, MODEL_ID), parse_mode="MarkdownV2")
+
 # ==================== CALLBACK QUERY HANDLER ====================
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -111,6 +118,10 @@ def handle_callback_queries(call):
     elif call.data == "btn_cek_actcomp":
         bot.send_chat_action(call.message.chat.id, 'typing')
         bot.send_message(call.message.chat.id, fetch_actcomp_data(client, MODEL_ID), parse_mode="MarkdownV2")
+        
+    elif call.data == "btn_cek_lensa":
+        bot.send_chat_action(call.message.chat.id, 'typing')
+        bot.send_message(call.message.chat.id, fetch_lensa_data(client, MODEL_ID), parse_mode="MarkdownV2")
         
     elif call.data == "btn_id":
         chat_id = call.message.chat.id

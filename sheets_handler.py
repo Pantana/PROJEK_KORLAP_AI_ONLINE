@@ -173,6 +173,49 @@ def fetch_actcomp_data(client=None, model_id=None):
     except Exception as e:
         return f"❌ *Error ACTCOMP:* {escape_md(str(e))}"
 
+def fetch_lensa_data(client=None, model_id=None):
+    if not ws_wo: return r"❌ Google Sheet tidak terhubung\."
+    try:
+        rows = ws_wo.get_all_values()
+        header = [str(h).upper().strip() for h in rows[0]]
+        idx_wonum, idx_status, idx_tech = header.index('WONUM'), header.index('STATUS'), header.index('TEKNISI')
+        idx_ket = header.index('KETERANGAN') if 'KETERANGAN' in header else -1
+        
+        alerts = {}
+        for row in rows[1:]:
+            if len(row) <= max(idx_wonum, idx_status, idx_tech) or not str(row[idx_wonum]).strip():
+                continue
+            status = str(row[idx_status]).upper().strip()
+            if 'LANJUT LENSA' in status:
+                tech = str(row[idx_tech]).strip()
+                tags = get_team_tags(tech)
+                if not tags: continue
+                ket_val = row[idx_ket] if idx_ket != -1 and len(row) > idx_ket else ""
+                info = f"▫️ `{escape_md(row[idx_wonum])}` \\[{escape_md(status)}\\] {escape_md(ket_val) if ket_val else '_tanpa keterangan_'}"
+                if tags not in alerts: alerts[tags] = []
+                alerts[tags].append(info)
+        
+        if not alerts: return "✅ *Semua status LANJUT LENSA sudah beres\\!*"
+        
+        ai_msg = "Ayo teman\\-teman, jangan lupa untuk segera memproses status LANJUT LENSA ya\\!"
+        if client and model_id:
+            try:
+                res = client.models.generate_content(
+                    model=model_id, 
+                    contents="Berikan satu kalimat singkat, santai namun tetap tegas dalam bahasa Indonesia untuk menagih/mengingatkan teknisi lapangan agar segera melanjutkan pengerjaan Lensa. Maksimal 15 kata. Tanpa markdown."
+                )
+                ai_msg = escape_md(res.candidates[0].content.parts[0].text.strip())
+            except Exception as e:
+                logging.warning(f"Gagal generate AI message: {e}")
+                pass
+
+        msg = f"🔔 *{ai_msg}*\n\n"
+        for tag, wos in alerts.items():
+            msg += f"{tag}\n" + "\n".join(wos) + "\n\n"
+        return msg
+    except Exception as e:
+        return f"❌ *Error Lensa:* {escape_md(str(e))}"
+
 def fetch_rekap_data():
     if not ws_wo: return r"❌ Google Sheet tidak terhubung\."
     try:
