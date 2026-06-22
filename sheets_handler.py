@@ -50,6 +50,16 @@ def get_team_tags(name_in_sheet):
             return team["tags"].replace('_', r'\_')
     return f"Teknisi {escape_md(name_in_sheet)}"
 
+def resolve_canonical_team(name_in_sheet):
+    name_upper = str(name_in_sheet).upper().strip()
+    if not name_upper or any(x in name_upper for x in ["UNASSIGNED", "BLM ASSIGN"]):
+        return None
+    for i, team in enumerate(TECH_TEAMS):
+        if any(member in name_upper for member in team["names"]):
+            if i < len(TEAM_LIST):
+                return TEAM_LIST[i]
+    return name_in_sheet
+
 def get_short_name(full_name):
     name = str(full_name).upper()
     mapping = {
@@ -81,18 +91,23 @@ def perform_auto_assign():
         idx_tech = header.index('TEKNISI')
         idx_status = header.index('STATUS')
         idx_alpro = header.index('ALPRO')
+        idx_wonum = header.index('WONUM')
         
         available_teams = [t for t in TEAM_LIST if t not in TEKNISI_LIBUR]
         load_count = {name: 0 for name in available_teams}
         
         unassigned_indices = []
         for i, row in enumerate(rows[1:], start=2):
+            if len(row) <= idx_wonum or not str(row[idx_wonum]).strip():
+                continue
             tech = str(row[idx_tech]).strip()
             status = str(row[idx_status]).upper().strip()
             if not tech or any(x in tech.upper() for x in ["UNASSIGNED", "BLM ASSIGN"]):
                 unassigned_indices.append((i, row))
-            elif tech in load_count and status not in ['PS', 'COMPLETE PS']:
-                load_count[tech] += 1
+            else:
+                canonical_tech = resolve_canonical_team(tech)
+                if canonical_tech in load_count and status not in ['PS', 'COMPLETE PS']:
+                    load_count[canonical_tech] += 1
 
         if not unassigned_indices: return
 
@@ -125,6 +140,8 @@ def fetch_actcomp_data(client=None, model_id=None):
         
         alerts = {}
         for row in rows[1:]:
+            if len(row) <= max(idx_wonum, idx_status, idx_tech) or not str(row[idx_wonum]).strip():
+                continue
             status = str(row[idx_status]).upper().strip()
             if 'ACTCOMP' in status:
                 tech = str(row[idx_tech]).strip()
@@ -163,16 +180,21 @@ def fetch_rekap_data():
         if not rows: return "Data Kosong"
         header = [str(h).upper().strip() for h in rows[0]]
         idx_status, idx_tech = header.index('STATUS'), header.index('TEKNISI')
+        idx_wonum = header.index('WONUM')
         
         pivot = {}
         total = {'KP': 0, 'KT': 0, 'OGP': 0, 'PSG': 0, 'PS': 0}
         active_tags = set()
 
         for row in rows[1:]:
-            if len(row) <= max(idx_status, idx_tech): continue
-            tech = str(row[idx_tech]).strip()
-            tags = get_team_tags(tech)
+            if len(row) <= max(idx_status, idx_tech, idx_wonum) or not str(row[idx_wonum]).strip():
+                continue
+            tech_raw = str(row[idx_tech]).strip()
+            tags = get_team_tags(tech_raw)
             if not tags: continue
+            
+            tech = resolve_canonical_team(tech_raw)
+            if not tech: continue
             
             status = str(row[idx_status]).upper().strip()
             if tech not in pivot: pivot[tech] = {'KP': 0, 'KT': 0, 'OGP': 0, 'PSG': 0, 'PS': 0}

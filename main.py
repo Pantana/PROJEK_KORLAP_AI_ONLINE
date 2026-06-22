@@ -5,7 +5,7 @@ import telebot
 from google import genai
 
 from config import BOT_TOKEN, GEMINI_KEY, GROUP_ID
-from sheets_handler import perform_auto_assign, fetch_actcomp_data, fetch_rekap_data
+from sheets_handler import fetch_actcomp_data, fetch_rekap_data
 
 # Inisialisasi Client Gemini API
 client = None
@@ -29,7 +29,6 @@ try:
         telebot.types.BotCommand("start", "Mulai bot & Tampilkan menu utama"),
         telebot.types.BotCommand("rekap", "Melihat rekap produktivitas berkala"),
         telebot.types.BotCommand("cek_actcomp", "Memeriksa status ACTCOMP / BAI pending"),
-        telebot.types.BotCommand("cek_assign", "Memeriksa dan memproses antrean auto-assign WO"),
         telebot.types.BotCommand("id", "Melihat ID chat saat ini")
     ])
 except Exception as e:
@@ -40,36 +39,26 @@ def get_main_menu_keyboard():
     markup = telebot.types.InlineKeyboardMarkup()
     markup.row(telebot.types.InlineKeyboardButton("📊 Tampilkan Rekap", callback_data="btn_rekap"))
     markup.row(telebot.types.InlineKeyboardButton("🔔 Cek ACTCOMP (Pending BAI)", callback_data="btn_cek_actcomp"))
-    markup.row(telebot.types.InlineKeyboardButton("🔍 Jalankan Auto-Assign", callback_data="btn_cek_assign"))
     markup.row(telebot.types.InlineKeyboardButton("🆔 Cek ID Chat", callback_data="btn_id"))
     return markup
 
 # ==================== WORKERS BACKGROUND ====================
-
-def auto_assign_worker():
-    while True:
-        try:
-            # Berjalan otomatis setiap jam 08:00 sampai 21:00
-            if 8 <= time.localtime().tm_hour < 21: 
-                perform_auto_assign()
-            time.sleep(180) 
-        except Exception as e:
-            logging.error(f"Worker Assign Error: {e}")
-            time.sleep(60)
 
 def auto_report_worker():
     last_rekap, last_actcomp = 0, 0
     while True:
         try:
             now = time.time()
-            if 8 <= time.localtime().tm_hour < 23:
+            if 8 <= time.localtime().tm_hour < 24:
                 # Hanya mengirim laporan otomatis jika GROUP_ID ditentukan di .env
                 if GROUP_ID:
-                    if now - last_rekap > 1800:
+                    if now - last_rekap > 3600:
                         bot.send_message(GROUP_ID, fetch_rekap_data(), parse_mode="MarkdownV2")
                         last_rekap = now
-                    if now - last_actcomp > 3600:
-                        bot.send_message(GROUP_ID, fetch_actcomp_data(client, MODEL_ID), parse_mode="MarkdownV2")
+                    if now - last_actcomp > 1800:
+                        actcomp_msg = fetch_actcomp_data(client, MODEL_ID)
+                        if "Semua status ACTCOMP sudah beres" not in actcomp_msg:
+                            bot.send_message(GROUP_ID, actcomp_msg, parse_mode="MarkdownV2")
                         last_actcomp = now
             time.sleep(60)
         except Exception as e:
@@ -108,11 +97,6 @@ def handle_cek_actcomp(message):
     bot.send_chat_action(message.chat.id, 'typing')
     bot.reply_to(message, fetch_actcomp_data(client, MODEL_ID), parse_mode="MarkdownV2")
 
-@bot.message_handler(commands=['cek_assign'])
-def handle_cek_assign(message):
-    bot.reply_to(message, "🔍 Memeriksa antrean WO...")
-    threading.Thread(target=perform_auto_assign).start()
-
 # ==================== CALLBACK QUERY HANDLER ====================
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -127,10 +111,6 @@ def handle_callback_queries(call):
     elif call.data == "btn_cek_actcomp":
         bot.send_chat_action(call.message.chat.id, 'typing')
         bot.send_message(call.message.chat.id, fetch_actcomp_data(client, MODEL_ID), parse_mode="MarkdownV2")
-        
-    elif call.data == "btn_cek_assign":
-        bot.send_message(call.message.chat.id, "🔍 Memeriksa antrean WO...")
-        threading.Thread(target=perform_auto_assign).start()
         
     elif call.data == "btn_id":
         chat_id = call.message.chat.id
@@ -149,7 +129,6 @@ if __name__ == "__main__":
     logging.info("🚀 Bot WOTRAX Activated & Running...")
     
     # Jalankan worker background di thread terpisah
-    threading.Thread(target=auto_assign_worker, daemon=True).start()
     threading.Thread(target=auto_report_worker, daemon=True).start()
     
     # Mulai bot polling
